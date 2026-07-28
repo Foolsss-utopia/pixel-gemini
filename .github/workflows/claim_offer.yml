@@ -1,0 +1,84 @@
+name: Claim Google One Pixel Offer via Redroid Cloud
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: 'Google Account Email'
+        required: true
+        default: 'valeriabaskara@gmail.com'
+      password:
+        description: 'Google Account Password'
+        required: true
+        default: '@edgebullish222'
+      totp_secret:
+        description: '2FA TOTP Secret Key'
+        required: false
+        default: 'RDZJ5ZTDXNPUJHADWXTYUMGXKLPJPZFW'
+
+jobs:
+  claim-offer:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Set up Redroid Android Container (Pixel 10 Pro)
+        run: |
+          sudo apt-get update && sudo apt-get install -y linux-modules-extra-$(uname -r) adb
+          sudo modprobe binder_linux devices="binder,hwbinder,vndbinder" || true
+          docker run -d --privileged \
+            -v ~/redroid-data:/data \
+            -p 5555:5555 \
+            --name redroid \
+            redroid/redroid:14.0.0_64only-latest \
+            androidboot.hardware=komodo \
+            ro.product.model="Pixel 10 Pro" \
+            ro.product.brand=google \
+            ro.product.manufacturer=Google \
+            ro.product.device=komodo \
+            ro.build.fingerprint="google/komodo/komodo:16/AP4A.250405.002/1234567:user/release-keys"
+          
+          echo "Waiting for Redroid boot..."
+          sleep 10
+          adb connect 127.0.0.1:5555 || true
+          adb wait-for-device || true
+
+      - name: Execute Redroid Automation & Extract Offer Link
+        env:
+          ACCOUNT_EMAIL: ${{ github.event.inputs.email }}
+          ACCOUNT_PASSWORD: ${{ github.event.inputs.password }}
+          ACCOUNT_TOTP: ${{ github.event.inputs.totp_secret }}
+        run: |
+          python -c "
+          import os
+          from redroid_automation import check_gemini_offer_redroid
+          from device_simulator import get_device_profile
+
+          email = os.environ.get('ACCOUNT_EMAIL')
+          password = os.environ.get('ACCOUNT_PASSWORD')
+          totp = os.environ.get('ACCOUNT_TOTP')
+          profile = get_device_profile('pixel_10_pro')
+
+          print(f'Starting Redroid Automation for {email}...')
+          link = check_gemini_offer_redroid(email, password, profile, totp)
+          print(f'Captured Offer Link: {link}')
+          "
+
+      - name: Upload Screenshot Artifacts (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: redroid-screenshots
+          path: "*.png"
