@@ -64,12 +64,12 @@ jobs:
           python -c "
           import os
           from redroid_automation import check_gemini_offer_redroid
-          from device_simulator import get_device_profile
+          from device_simulator import create_device_profile
 
           email = os.environ.get('ACCOUNT_EMAIL')
           password = os.environ.get('ACCOUNT_PASSWORD')
           totp = os.environ.get('ACCOUNT_TOTP')
-          profile = get_device_profile('pixel_10_pro')
+          profile = create_device_profile()
 
           print(f'Starting Redroid Automation for {email}...')
           link = check_gemini_offer_redroid(email, password, profile, totp)
