@@ -7,3 +7,19 @@ dist/
 build/
 .venv/
 venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# Temporary local debug helpers
+tmp_*.py
+
+# Local proxy list
+proxies.txt
+GoogleOne_official.apk
+browser.apk

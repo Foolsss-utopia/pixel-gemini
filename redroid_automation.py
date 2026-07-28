@@ -56,41 +56,47 @@ class RedroidAutomation:
             logger.info("Initiating Google account login for %s on Redroid...", email)
             # Open Android Settings Add Account Intent
             self.d.shell("am start -a android.settings.ADD_ACCOUNT_SETTINGS")
-            time.sleep(3)
+            time.sleep(4)
 
             # Click Google account option if list appears
             if self.d(text="Google").exists(timeout=5):
                 self.d(text="Google").click()
-                time.sleep(3)
+                time.sleep(5)
 
             # Enter Email
             if self.d(resourceId="identifierId").exists(timeout=15):
                 self.d(resourceId="identifierId").set_text(email)
+                time.sleep(1)
                 if self.d(text="Next").exists():
                     self.d(text="Next").click()
                 elif self.d(resourceId="identifierNext").exists():
                     self.d(resourceId="identifierNext").click()
-                time.sleep(4)
+                time.sleep(5)
 
             # Enter Password
             if self.d(className="android.widget.EditText").exists(timeout=15):
                 self.d(className="android.widget.EditText").set_text(password)
+                time.sleep(1)
                 if self.d(text="Next").exists():
                     self.d(text="Next").click()
-                time.sleep(4)
+                elif self.d(resourceId="passwordNext").exists():
+                    self.d(resourceId="passwordNext").click()
+                time.sleep(5)
 
             # Handle 2FA TOTP if prompted
             if totp_secret and self.d(className="android.widget.EditText").exists(timeout=5):
                 totp_code = pyotp.TOTP(totp_secret.replace(" ", "")).now()
                 self.d(className="android.widget.EditText").set_text(totp_code)
+                time.sleep(1)
                 if self.d(text="Next").exists():
                     self.d(text="Next").click()
-                time.sleep(4)
-
-            # Accept Terms
-            if self.d(text="I agree").exists(timeout=10):
-                self.d(text="I agree").click()
                 time.sleep(5)
+
+            # Accept Terms / Don't allow backup screen
+            for term_btn in ["I agree", "Accept", "Don't turn on", "Skip", "Turn off"]:
+                if self.d(text=term_btn).exists(timeout=5):
+                    self.d(text=term_btn).click()
+                    time.sleep(4)
 
             logger.info("Google Account login flow completed on Redroid for %s", email)
             return True
@@ -103,7 +109,7 @@ class RedroidAutomation:
         """
         Main entry point for Redroid offer claim.
 
-        Launches Google One / Gemini Android app on Redroid, navigates to offers,
+        Launches Google One native Android app / Browser on Redroid, navigates to offers,
         clicks "Claim Offer" / "Try Gemini Advanced", and captures the redemption link.
         """
         if not self.d:
@@ -113,24 +119,30 @@ class RedroidAutomation:
             # Step 1: Ensure Google Account is added
             self.login_google_account(email, password, totp_secret)
 
-            # Step 2: Trigger Play Store / Google One Subscriptions Voucher Intent
-            logger.info("Triggering Google Play Store Subscriptions RPC Intent for Pixel 10 Pro...")
+            # Step 2: Launch Google One Web offer in Chrome/Browser directly with intent
+            logger.info("Triggering Google Play Store / Google One Offer Intent for Pixel 10 Pro...")
             intents = [
                 "am start -a android.intent.action.VIEW -d https://one.google.com/offer/partner-eft-onboard",
-                "am start -a android.intent.action.VIEW -d https://one.google.com/offers",
-                "am start -a android.intent.action.VIEW -d market://details?id=com.google.android.apps.subscriptions.red",
-                "am start -a android.intent.action.VIEW -d https://one.google.com/benefit/detail/gemini"
+                "am start -a android.intent.action.VIEW -d https://one.google.com/benefit/detail/gemini",
+                "am start -a android.intent.action.VIEW -d https://one.google.com/offers"
             ]
             for cmd in intents:
+                logger.info("Executing intent: %s", cmd)
                 self.d.shell(cmd)
-                time.sleep(4)
+                time.sleep(6)
+
+                # Look for account sign in prompts or "Use without an account" inside browser
+                for btn_text in ["Continue as Quinara", "Sign in", "Use without an account", "I agree", "Got it", "Accept"]:
+                    if self.d(text=btn_text).exists(timeout=2):
+                        self.d(text=btn_text).click()
+                        time.sleep(3)
 
             # Take screenshot after intent launch
             self.d.screenshot("intent_screen.png")
 
             # Step 3: Look for "Claim Offer" / "Try Gemini Advanced" / "Share" / "Get Offer" UI elements
             claim_btn = None
-            for label in ["Try Gemini Advanced", "Claim offer", "Get offer", "Redeem", "Explore benefits", "View details", "Start trial"]:
+            for label in ["Try Gemini Advanced", "Claim offer", "Get offer", "Redeem", "Explore benefits", "View details", "Start trial", "Upgrade"]:
                 if self.d(text=label).exists(timeout=3):
                     claim_btn = self.d(text=label)
                     logger.info("Found offer claim button with text '%s'", label)
@@ -138,10 +150,10 @@ class RedroidAutomation:
 
             if claim_btn:
                 claim_btn.click()
-                time.sleep(5)
+                time.sleep(6)
                 self.d.screenshot("after_click_screen.png")
 
-            # Step 4: Scan UI hierarchy & ADB logcat for generated 20-character offer URL (https://one.google.com/offer/[20_CHAR_CODE])
+            # Step 4: Scan UI hierarchy & ADB logcat for generated 20-character offer URL
             xml_dump = self.d.dump_hierarchy()
             offer_codes = re.findall(r'https?://one\.google\.com/offer/([A-Za-z0-9_-]{16,24})', xml_dump)
             if offer_codes:
@@ -151,14 +163,12 @@ class RedroidAutomation:
                     logger.info("Captured 20-character public offer voucher URL: %s", code_url)
                     return code_url
 
-            # Also scan raw text for 20-character alphanumeric voucher codes in UI dump
             raw_codes = re.findall(r'\b([A-Z0-9]{20})\b', xml_dump)
             if raw_codes:
                 code_url = f"https://one.google.com/offer/{raw_codes[0]}"
                 logger.info("Captured 20-character raw voucher code from Android UI: %s", code_url)
                 return code_url
 
-            # Check logcat across all Android services for 20-character voucher codes
             logcat_res = self.d.shell("logcat -d")
             logcat_out = str(getattr(logcat_res, 'output', logcat_res))
             logcat_codes = re.findall(r'https?://one\.google\.com/offer/([A-Za-z0-9_-]{16,24})', logcat_out)

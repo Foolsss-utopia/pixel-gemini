@@ -6,15 +6,15 @@ on:
       email:
         description: 'Google Account Email'
         required: true
-        default: 'valeriabaskara@gmail.com'
+        default: 'quinarafitriani6@gmail.com'
       password:
         description: 'Google Account Password'
         required: true
-        default: '@edgebullish222'
+        default: '@pulaunumenor111'
       totp_secret:
         description: '2FA TOTP Secret Key'
         required: false
-        default: 'RDZJ5ZTDXNPUJHADWXTYUMGXKLPJPZFW'
+        default: 'OJ35GGKWLQSPOHHHO56F4WENBOVSMHBB'
 
 jobs:
   claim-offer:
@@ -34,9 +34,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Set up Redroid Android Container (Pixel 10 Pro)
+      - name: Set up Redroid Android Container (Pixel 10 Pro) & Install Google One APK
         run: |
-          sudo apt-get update && sudo apt-get install -y linux-modules-extra-$(uname -r) adb
+          sudo apt-get update && sudo apt-get install -y linux-modules-extra-$(uname -r) adb curl
           sudo modprobe binder_linux devices="binder,hwbinder,vndbinder" || true
           docker run -d --privileged \
             -v ~/redroid-data:/data \
@@ -51,9 +51,12 @@ jobs:
             ro.build.fingerprint="google/komodo/komodo:16/AP4A.250405.002/1234567:user/release-keys"
           
           echo "Waiting for Redroid boot..."
-          sleep 10
+          sleep 15
           adb connect 127.0.0.1:5555 || true
           adb wait-for-device || true
+
+          echo "Configuring US SOCKS5 Proxy via Global HTTP Proxy..."
+          adb shell settings put global http_proxy 184.181.217.220:4145 || true
 
       - name: Execute Redroid Automation & Extract Offer Link
         env:

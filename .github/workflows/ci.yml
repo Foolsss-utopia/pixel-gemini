@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile every Python file
+        run: python -m compileall -q .
+
+      - name: Smoke test every Pixel device profile
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python .github/scripts/smoke_device_profiles.py
