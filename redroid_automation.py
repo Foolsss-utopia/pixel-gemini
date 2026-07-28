@@ -125,6 +125,9 @@ class RedroidAutomation:
                 self.d.shell(cmd)
                 time.sleep(4)
 
+            # Take screenshot after intent launch
+            self.d.screenshot("intent_screen.png")
+
             # Step 3: Look for "Claim Offer" / "Try Gemini Advanced" / "Share" / "Get Offer" UI elements
             claim_btn = None
             for label in ["Try Gemini Advanced", "Claim offer", "Get offer", "Redeem", "Explore benefits", "View details", "Start trial"]:
@@ -136,6 +139,7 @@ class RedroidAutomation:
             if claim_btn:
                 claim_btn.click()
                 time.sleep(5)
+                self.d.screenshot("after_click_screen.png")
 
             # Step 4: Scan UI hierarchy & ADB logcat for generated 20-character offer URL (https://one.google.com/offer/[20_CHAR_CODE])
             xml_dump = self.d.dump_hierarchy()
