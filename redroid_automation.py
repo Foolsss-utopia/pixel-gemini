@@ -63,25 +63,34 @@ class RedroidAutomation:
                 self.d(text="Google").click()
                 time.sleep(5)
 
+            # Take screenshot of login entry screen
+            self.d.screenshot("login_screen_init.png")
+
             # Enter Email
-            if self.d(resourceId="identifierId").exists(timeout=15):
-                self.d(resourceId="identifierId").set_text(email)
+            email_field = self.d(resourceId="identifierId") or self.d(className="android.widget.EditText")
+            if email_field.exists(timeout=15):
+                email_field.set_text(email)
                 time.sleep(1)
                 if self.d(text="Next").exists():
                     self.d(text="Next").click()
                 elif self.d(resourceId="identifierNext").exists():
                     self.d(resourceId="identifierNext").click()
-                time.sleep(5)
+                time.sleep(6)
+
+            self.d.screenshot("after_email_screen.png")
 
             # Enter Password
-            if self.d(className="android.widget.EditText").exists(timeout=15):
-                self.d(className="android.widget.EditText").set_text(password)
+            pwd_field = self.d(className="android.widget.EditText")
+            if pwd_field.exists(timeout=15):
+                pwd_field.set_text(password)
                 time.sleep(1)
                 if self.d(text="Next").exists():
                     self.d(text="Next").click()
                 elif self.d(resourceId="passwordNext").exists():
                     self.d(resourceId="passwordNext").click()
-                time.sleep(5)
+                time.sleep(6)
+
+            self.d.screenshot("after_password_screen.png")
 
             # Handle 2FA TOTP if prompted
             if totp_secret and self.d(className="android.widget.EditText").exists(timeout=5):
@@ -90,14 +99,16 @@ class RedroidAutomation:
                 time.sleep(1)
                 if self.d(text="Next").exists():
                     self.d(text="Next").click()
-                time.sleep(5)
+                time.sleep(6)
 
-            # Accept Terms / Don't allow backup screen
-            for term_btn in ["I agree", "Accept", "Don't turn on", "Skip", "Turn off"]:
-                if self.d(text=term_btn).exists(timeout=5):
-                    self.d(text=term_btn).click()
-                    time.sleep(4)
+            # Accept Terms / Don't allow backup screen / Google Services Accept
+            for _ in range(3):
+                for term_btn in ["I agree", "Accept", "Don't turn on", "Skip", "Turn off", "MORE", "ACCEPT"]:
+                    if self.d(text=term_btn).exists(timeout=3):
+                        self.d(text=term_btn).click()
+                        time.sleep(4)
 
+            self.d.screenshot("login_complete_screen.png")
             logger.info("Google Account login flow completed on Redroid for %s", email)
             return True
 
@@ -119,8 +130,19 @@ class RedroidAutomation:
             # Step 1: Ensure Google Account is added
             self.login_google_account(email, password, totp_secret)
 
-            # Step 2: Launch Google One Web offer in Chrome/Browser directly with intent
-            logger.info("Triggering Google Play Store / Google One Offer Intent for Pixel 10 Pro...")
+            # Step 2: Open Chrome browser via intent to force Google One offer page under US IP
+            logger.info("Launching Chrome intent to one.google.com/offers...")
+            self.d.shell("am start -n com.android.chrome/com.google.android.apps.chrome.Main -d https://one.google.com/offers")
+            time.sleep(8)
+            self.d.screenshot("chrome_offers_screen.png")
+
+            # Handle Chrome welcome screens if shown
+            for chrome_btn in ["Accept & continue", "No thanks", "Turn on sync", "Continue", "Got it"]:
+                if self.d(text=chrome_btn).exists(timeout=3):
+                    self.d(text=chrome_btn).click()
+                    time.sleep(4)
+
+            # Trigger backup intent urls
             intents = [
                 "am start -a android.intent.action.VIEW -d https://one.google.com/offer/partner-eft-onboard",
                 "am start -a android.intent.action.VIEW -d https://one.google.com/benefit/detail/gemini",
@@ -130,12 +152,6 @@ class RedroidAutomation:
                 logger.info("Executing intent: %s", cmd)
                 self.d.shell(cmd)
                 time.sleep(6)
-
-                # Look for account sign in prompts or "Use without an account" inside browser
-                for btn_text in ["Continue as Quinara", "Sign in", "Use without an account", "I agree", "Got it", "Accept"]:
-                    if self.d(text=btn_text).exists(timeout=2):
-                        self.d(text=btn_text).click()
-                        time.sleep(3)
 
             # Take screenshot after intent launch
             self.d.screenshot("intent_screen.png")
